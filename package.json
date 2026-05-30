@@ -1,16 +1,20 @@
 {
   "name": "backend_2",
   "version": "1.0.0",
-  "description": "",
+  "description": " a backend project withb javascript",
+  "type": "module",
   "keywords": [
     "javascript",
     "backend"
   ],
   "license": "ISC",
   "author": "Srusti",
-  "type": "commonjs",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev":"noddemon src/index.js"
+    
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }
