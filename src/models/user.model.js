@@ -19,7 +19,7 @@ const userSchema = new Schema(
             lowercase: true,
             trim: true,
         },
-        fullname:{
+        fullName:{
             type:String,
             require:true,
             lowercase: true,
@@ -34,7 +34,7 @@ const userSchema = new Schema(
             type:String,
 
         },
-           watchHistory:[
+        watchHistory:[
             {
                 type:Schema.Types.ObjectId,
                 ref: "Video"
@@ -52,11 +52,11 @@ const userSchema = new Schema(
         timestamps:true
     }
 )
-userSchema.pre("save",async function(next){
-    if(this.isModified("password"))return next();
+userSchema.pre("save",async function(){
+    if(this.isModified("password"))return ;
 
     this.password = await bcrypt.hash(this.password , 10)
-    next()
+    
 })
 
 
@@ -71,7 +71,7 @@ userSchema.methods.generatAccessToken = function(){
             _id: this._id,
             email: this.email,
             username:this.username,
-            fullname:this.fullname
+            fullName:this.fullName
         },
         process.env.ACCESS_TOKEN_SECERT,
         {
