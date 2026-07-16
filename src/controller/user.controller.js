@@ -3,6 +3,7 @@ import {ApiError} from "../utils/ApiError.js"
 import {User} from "../models/user.model.js"
 import {uploadOnCloudinary} from "../utils/cloudinary.service.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
+import jwt from "jsonwebtoken"
 
 const generateAccessAndRefreshTokens = async(userId)=>{
     try{
@@ -14,9 +15,11 @@ const generateAccessAndRefreshTokens = async(userId)=>{
         await user.save({validateBeforeSave: false})
         return {accessToken,refreshToken}
 
-    }catch{
+    }catch(error){
+        //debug
+        console.log(error)
         throw new ApiError(500,"something went wrong while generating access and refresh token ")
-    }
+    };
 }
 const registerUser = asyncHandler(async (req,res) => {
     //algorithm-->
@@ -130,9 +133,10 @@ const loginUser = asyncHandler(async (req,res) => {
 
     const loggedInUser= await User.findById(user._id).select("-password -refreshToken")
 
-    const options ={
+    const options = {
         httpOnly: true,
-        secure: true//cookies can only be modifies by server
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
     }
     return res
     .status(200)
@@ -162,9 +166,10 @@ const logoutUser = asyncHandler(async(req,res) =>{
             new: true
         }     
      )
-      const options ={
+      const options = {
         httpOnly: true,
-        secure: true
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
     }
     return res
     .status(200)
@@ -173,6 +178,19 @@ const logoutUser = asyncHandler(async(req,res) =>{
     .json(new ApiResponse(200, {},"User logged out"))
 })
 
+const refreshAccessToken =asyncHandler(async (req,res)=>{
+    const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken
+
+    if (!incomingRefreshToken){
+        throw new ApiError(401,"unauthorized request")
+    }
+    
+    const decodedToken = jwt.verify(
+        incomingRefreshToken,
+        process.env.REFRESH_TOKEN_SECRET
+    )
+
+})
 export {
     registerUser,
     loginUser,
