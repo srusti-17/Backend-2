@@ -1,7 +1,7 @@
 import {asyncHandler} from "../utils/asyncHandler.js"
 import {ApiError} from "../utils/ApiError.js"
 import {User} from "../models/user.model.js"
-import {uploadOnCloudinary} from "../utils/cloudinary.service.js"
+import {uploadOnCloudinary, deleteFromCloudinary} from "../utils/cloudinary.service.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
 import jwt from "jsonwebtoken"
 
@@ -69,7 +69,9 @@ const registerUser = asyncHandler(async (req,res) => {
     const user = await User.create({
         fullName,
         avatar: avatar.url,
+        avatarPublicId: avatar.public_id,
         coverImage:coverImage?.url || "",
+        coverImagePublicId:coverImage?.public_id || "",
         email,
         password,
         username:username.toLowerCase()
@@ -156,7 +158,7 @@ const loginUser = asyncHandler(async (req,res) => {
 const logoutUser = asyncHandler(async(req,res) =>{
      //using middleware
      //cookie can be accessed through req.cookie
-     User.findByIdAndUpdate(
+     await User.findByIdAndUpdate(
         req.user._id,
         {
             $set: { 
@@ -201,20 +203,21 @@ const refreshAccessToken =asyncHandler(async (req,res)=>{
             throw new ApiError(401,"Refresh token is expired or used")
         }
         
-        const options ={
-            httpOnly:true,
-            secure:true
+        const options = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: process.env.NODE_ENV === "production" ? "none" : "lax"
         }
     
-        const {newAccessToken, newRefreshToken}=await generateAccessAndRefreshTokens(user._id)
+        const {accessToken, refreshToken} = await generateAccessAndRefreshTokens(user._id)
     
         return res.status(200)
-        .cookie("accessToken",newAccessToken,options)
-        .cookie("accessToken",newRefreshToken,options)
+        .cookie("accessToken", accessToken, options)
+        .cookie("refreshToken", refreshToken, options)
         .json(
             new ApiResponse(
                 200,
-                {newAccessToken,newRefreshToken},
+                {accessToken, refreshToken},
                 "Access Token Refreshed"
             )
         )
@@ -225,9 +228,9 @@ const refreshAccessToken =asyncHandler(async (req,res)=>{
 })
 
 const changeCurrentPassword = asyncHandler(async(req,res) => {
-    const {oldPassword ,newPassword      } =req.body
+    const {oldPassword ,newPassword} =req.body
     const user = await User.findById(req.user?._id)
-    user.isPasswordCorrect(oldPassword)
+    const isPasswordCorrect = await user.isPasswordCorrect(oldPassword)
 
     if(!isPasswordCorrect){
         throw new ApiError(400,"invalid old password")
@@ -278,21 +281,30 @@ const updateUserAvatar = asyncHandler(async(req,res)=>{
         throw new ApiError(400, "Avatar file is missing")
     }
 
-    avatar = await uploadOnCloudinary(avatarLocalPath)
+    // Get the old avatar public ID from the current logged-in user
+    const oldAvatarPublicId = req.user?.avatarPublicId
 
-    if(!avatar.url){
-        throw new ApiError(400, "Error while uploading on avatar")
+    const avatar = await uploadOnCloudinary(avatarLocalPath)
+
+    if(!avatar?.url){
+        throw new ApiError(400, "Error while uploading avatar")
     }
 
     const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set:{
-                avatar:avatar.url
+                avatar: avatar.url,
+                avatarPublicId: avatar.public_id
             }
         },
         {new:true}
     ).select("-password")
+
+    // Delete the old avatar image from Cloudinary using publicId directly
+    if (oldAvatarPublicId) {
+        await deleteFromCloudinary(oldAvatarPublicId);
+    }
 
     return res
     .status(200)
@@ -307,21 +319,30 @@ const updateUserCoverImage = asyncHandler(async(req,res)=>{
         throw new ApiError(400, "Cover Image file is missing")
     }
 
-    coverImage = await uploadOnCloudinary(coverImageLocalPath)
+    // Get the old cover image public ID from the current logged-in user
+    const oldCoverImagePublicId = req.user?.coverImagePublicId
 
-    if(!coverImage.url){
-        throw new ApiError(400, "Error while uploading on cover image")
+    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
+
+    if(!coverImage?.url){
+        throw new ApiError(400, "Error while uploading cover image")
     }
 
     const user = await User.findByIdAndUpdate(
         req.user?._id,
         {
             $set:{
-                coverImage:coverImage.url
+                coverImage: coverImage.url,
+                coverImagePublicId: coverImage.public_id
             }
         },
         {new:true}
     ).select("-password")
+
+    // Delete the old cover image from Cloudinary using publicId directly
+    if (oldCoverImagePublicId) {
+        await deleteFromCloudinary(oldCoverImagePublicId);
+    }
 
     return res
     .status(200)
