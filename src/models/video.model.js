@@ -6,8 +6,16 @@ const videoSchema = new Schema(
             type:String,//cloudinary
             required: true
         },
+        videoFilePublicId:{
+            type:String,
+            required: true
+        },
         thumbnails:{
             type:String,//cloudinary
+            required: true
+        },
+        thumbnailPublicId:{
+            type:String,
             required: true
         },
         title:{
